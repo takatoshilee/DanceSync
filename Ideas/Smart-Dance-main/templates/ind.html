@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='styles/ind.css') }}"> 
+  <link href="https://fonts.googleapis.com/css?family=Ubuntu" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="path/to/font-awesome/css/font-awesome.min.css">
+  <title>Sign in</title>
+</head>
+
+<body>
+  
+  <div class="main">
+    <div class="container">
+      <img src="{{ url_for('static',filename='images/funky-town-annotated.gif') }}" alt="hackthenorth">
+      <div class="form">
+      <p class="sign" align="center">Sign in</p>
+      <form class="form1" method="POST" action="{{ url_for('login') }}">
+      <!-- <input class="un " type="text" align="center" placeholder="Username"> --> 
+            <input class = "un " type="text" align="center" name="username" placeholder="Username">   
+        <!-- <input class="pass" type="password" align="center" placeholder="Password"> -->
+            <input name = "pass" class="pass" id="Pass" type="password" align="center" placeholder="Password">    
+        <button type="submit" align="center" class="submit">Log In</button>
+        <br><br>
+        <div class="signup">
+          Dont have an account? <a href="{{ url_for('register') }}">Sign up here</a>.
+        </div>
+    </div>
+  </div>
+      
+            
+                
+    </div>
+     
+</body>
+
+</html>
+
+
+
+
