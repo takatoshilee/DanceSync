@@ -1,5 +1,3 @@
-import os
-
 """
 TODO
 add mirror function done
@@ -164,9 +162,7 @@ def extract_landmarks(video_file):
 
     return xy_joint_coords, video_frames, pose_landmarks
 
-
-
-def compare_joint_positions(xy_dancer1, xy_dancer2, frames_dancer1, frames_dancer2, landmarks_dancer1, landmarks_dancer2, frame_rate):
+def compare_joint_positions(xy_dancer1, xy_dancer2, frames_dancer1, frames_dancer2, landmarks_dancer1, landmarks_dancer2):
     #DEBUG
     print("Length of xy_dancer1:", len(xy_dancer1))
     print("Length of xy_dancer2:", len(xy_dancer2))
@@ -194,24 +190,17 @@ def compare_joint_positions(xy_dancer1, xy_dancer2, frames_dancer1, frames_dance
     # Creating the output video
     output_video = VideoWriter(f'{OUTPUT_FOLDER}/output.mp4', VideoWriter_fourcc(*'mp4v'), 24.0, (2*720, 1280), isColor=True)
 
-    frame_accuracies = []
-
-    # ADD: Initialize a dictionary to store second-level accuracies
-    second_accuracies = {}
-
+    
     for frame_index in range(frame_comparison_count):
         # Calculate joint angle differences for each frame
         joint_angle_differences = []
-        # Initialize a list to track frame accuracy
-        
+
         # Retrieve joint positions for the current frame
         joints_dancer1, joints_dancer2 = xy_dancer1[frame_index], xy_dancer2[frame_index]
 
         # Skip frames where landmarks are not detected
         if not joints_dancer1 or not joints_dancer2:
             continue
-        
-
 
         for pair_index, pair in enumerate(joint_pairs):
             joint1, joint2 = pair
@@ -238,57 +227,33 @@ def compare_joint_positions(xy_dancer1, xy_dancer2, frames_dancer1, frames_dance
             if difference < 2:  # example threshold, can be adjusted
                 joint_accuracy[joint_names[pair_index]] += 1
             joint_count[joint_names[pair_index]] += 1
-        
-        # Check if joint_angle_differences is not empty before calculating mean
-        if joint_angle_differences:
-            # Calculate the mean difference for the frame
-            frame_difference = mean(joint_angle_differences)
-            
-            
-            frame_accuracy = 100 - frame_difference * 100  # Convert to percentage
-            frame_accuracies.append((frame_index, frame_accuracy))
 
-            
+        # Calculate the mean difference for the frame
+        frame_difference = mean(joint_angle_differences)
 
-            # Create live comparison display
-            frame_height, frame_width, _ = frames_dancer1[frame_index].shape
-            mpDrawing.draw_landmarks(frames_dancer1[frame_index], landmarks_dancer1[frame_index].pose_landmarks, mpBodyPose.POSE_CONNECTIONS)
-            mpDrawing.draw_landmarks(frames_dancer2[frame_index], landmarks_dancer2[frame_index].pose_landmarks, mpBodyPose.POSE_CONNECTIONS)
-            comparison_display = np.concatenate((frames_dancer1[frame_index], frames_dancer2[frame_index]), axis=1)
+        # Create live comparison display
+        frame_height, frame_width, _ = frames_dancer1[frame_index].shape
+        mpDrawing.draw_landmarks(frames_dancer1[frame_index], landmarks_dancer1[frame_index].pose_landmarks, mpBodyPose.POSE_CONNECTIONS)
+        mpDrawing.draw_landmarks(frames_dancer2[frame_index], landmarks_dancer2[frame_index].pose_landmarks, mpBodyPose.POSE_CONNECTIONS)
+        comparison_display = np.concatenate((frames_dancer1[frame_index], frames_dancer2[frame_index]), axis=1)
 
-            # Set color based on difference magnitude
-            color = (0, 0, 255) if frame_difference > 10 else (255, 0, 0)
-            cv2.putText(comparison_display, f"Diff: {frame_difference:.2f}", (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
+        # Set color based on difference magnitude
+        color = (0, 0, 255) if frame_difference > 10 else (255, 0, 0)
+        cv2.putText(comparison_display, f"Diff: {frame_difference:.2f}", (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
 
-            # Increment unsynced frames count if needed
-            if frame_difference > 10:
-                unsynced_frames += 1
+        # Increment unsynced frames count if needed
+        if frame_difference > 10:
+            unsynced_frames += 1
 
-            # Update live synchronization score
-            synchronization_score = ((frame_index + 1 - unsynced_frames) / (frame_index + 1)) * 100.0
-            cv2.putText(comparison_display, f"Score: {synchronization_score:.2f}%", (frame_width + 40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
+        # Update live synchronization score
+        synchronization_score = ((frame_index + 1 - unsynced_frames) / (frame_index + 1)) * 100.0
+        cv2.putText(comparison_display, f"Score: {synchronization_score:.2f}%", (frame_width + 40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
 
-            cv2.imshow(str(frame_index), comparison_display)
-            output_video.write(comparison_display)
-            cv2.waitKey(1)
-        else:
-            # Optionally handle frames with no valid joint comparisons
-            frame_accuracies.append((frame_index, 0)) # Assigning 0% accuracy as an example
+        cv2.imshow(str(frame_index), comparison_display)
+        output_video.write(comparison_display)
+        cv2.waitKey(1)
+
     output_video.release()
-    
-    # ADD: Aggregate frame accuracies into second-level accuracies
-    #frame_rate = video_capture.get(cv2.CAP_PROP_FPS)  # Assuming 'video_capture' is available in the scope
-    for i in range(0, len(frame_accuracies), int(frame_rate)):
-        second = i // int(frame_rate)
-        accuracies_this_second = frame_accuracies[i:i + int(frame_rate)]
-        if accuracies_this_second:
-            average_accuracy = sum(accuracies_this_second) / len(accuracies_this_second)
-            second_accuracies[second] = average_accuracy
-
-    # ADD: Identify the second with the lowest average accuracy
-    min_accuracy_second = min(second_accuracies, key=second_accuracies.get)
-    print(f"Lowest accuracy at second {min_accuracy_second} with {second_accuracies[min_accuracy_second]:.2f}% accuracy.")
-
 
     # Print Accuracy Summary
     print("Accuracy Summary")
@@ -296,10 +261,6 @@ def compare_joint_positions(xy_dancer1, xy_dancer2, frames_dancer1, frames_dance
         if joint_count[joint] > 0:  # Avoid division by zero
             accuracy_percentage = (acc_count / joint_count[joint]) * 100
             print(f"{joint} Accuracy: {accuracy_percentage:.2f}%")
-
-    # Identify the frame(s) with the lowest accuracy
-    min_accuracy_frame = min(frame_accuracies, key=lambda x: x[1])
-    print(f"Lowest accuracy at frame {min_accuracy_frame[0]} with {min_accuracy_frame[1]:.2f}% accuracy.")
 
     return synchronization_score
 
@@ -381,22 +342,11 @@ def change_video_speed(video_file, speed_factor):
     os.system(f"ffmpeg {OVERWRITE_FLAG} -i {video_file} -filter:v 'setpts={1/speed_factor}*PTS' -filter:a 'atempo={speed_factor}' {output_file}")
     return output_file
 
-def calculate_frame_rate(video_file):
-    video_capture = cv2.VideoCapture(video_file)
-    if not video_capture.isOpened():
-        print(f"Failed to open video file {video_file} for frame rate calculation.")
-        return None
-    frame_rate = video_capture.get(cv2.CAP_PROP_FPS)
-    video_capture.release()
-    return frame_rate
-
 
 if __name__ == "__main__":
     # Default speed factor
     default_speed_factor = 1.0
     speed_factor = default_speed_factor
-    frame_rate = None  # Initialize frame_rate
-
 
     # Check if the first argument is a speed factor
     try:
@@ -447,33 +397,21 @@ if not (len(sys.argv) > 3 and sys.argv[3] == '--compare-only'):
     # Trimming videos for length synchronization
     trimmed_reference_video, trimmed_comparison_video = equalize_clip_lengths(reference_video_24fps, comparison_video_24fps, audio_offset)
     print(trimmed_reference_video, trimmed_comparison_video)
-    
-    # Frame rate calculation using trimmed video
-    frame_rate = calculate_frame_rate(trimmed_reference_video)
-    if frame_rate is None or frame_rate == 0:
-        print("Error calculating frame rate. Exiting.")
-        sys.exit(-1)
-
-    print("Calculated Frame Rate:", frame_rate)
 # --------------------------------------------------------- MAIN --------------------------------------------------------------------------------------
 else:
     # Assigning already trimmed videos for comparison
     trimmed_reference_video = sys.argv[1]
     trimmed_comparison_video = sys.argv[2]
 
-
-
 # Analyzing dance synchronization
 print(f"Reference model: {trimmed_reference_video}, Comparison: {trimmed_comparison_video} \n")
 xy_ref_dancer, ref_dancer_frames, ref_dancer_landmarks = extract_landmarks(trimmed_reference_video)
 xy_comp_dancer, comp_dancer_frames, comp_dancer_landmarks = extract_landmarks(trimmed_comparison_video)
 
-# Check if frame_rate is available before comparing joint positions
-if frame_rate is not None:
-    synchronization_score = compare_joint_positions(xy_ref_dancer, xy_comp_dancer, ref_dancer_frames, comp_dancer_frames, ref_dancer_landmarks, comp_dancer_landmarks, frame_rate)
-    print(f"\n Your synchronization with the reference model is {synchronization_score:.2f}%.")
-else:
-    print("Frame rate is not available. Cannot proceed with synchronization score calculation.")
+# Calculating synchronization score
+synchronization_score = compare_joint_positions(xy_ref_dancer, xy_comp_dancer, ref_dancer_frames, comp_dancer_frames, ref_dancer_landmarks, comp_dancer_landmarks)
+print(f"\n Your synchronization with the reference model is {synchronization_score:.2f}%.")
+
 
 # Cleaning up temporary files
 # delete_temporary_videos()
