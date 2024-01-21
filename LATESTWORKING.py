@@ -1,25 +1,17 @@
-
 import os
 
 """
 TODO 
 add mirror function
-
 add speed funciton
-
 OOP
-
 GUI
-
-
 real time testing -> use posenet instead of mediapipe
 """
-
 
 #SUPPRESSION
 from contextlib import contextmanager
 from contextlib import suppress
-
 
 # Suppressing warnings
 import warnings

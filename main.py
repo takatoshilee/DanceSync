@@ -1,8 +1,7 @@
-
 import os
 
 """
-TODO 
+TODO
 add mirror function done
 
 add speed funciton done -> MAKE INTO terminal args
@@ -14,22 +13,19 @@ GUI
 # Cleaning up temporary files
 # delete_temporary_videos()
 
-
 real time testing -> use posenet instead of mediapipe
 """
-
 
 #SUPPRESSION
 from contextlib import contextmanager
 from contextlib import suppress
-
 
 # Suppressing warnings
 import warnings
 warnings.filterwarnings("ignore")
 
 # suppress mediapipe logs
-os.environ['GLOG_minloglevel'] = '2' 
+os.environ['GLOG_minloglevel'] = '2'
 
 @contextmanager
 def suppress_output():
@@ -48,7 +44,8 @@ def suppress_output():
             
 
 import subprocess
-from glob import glob
+import glob  # Updated import
+
 import cv2
 from cv2 import VideoWriter_fourcc, VideoWriter
 import math
@@ -78,114 +75,25 @@ def mirror_video(video_file):
     os.system(f"ffmpeg {OVERWRITE_FLAG} -i {video_file} -vf 'hflip' {mirrored_file}")
     return mirrored_file
 
-# Function to process command line arguments and extract mirrored videos
-"""
-def parse_and_mirror_videos(args):
-    mirrored_videos = []
-    videos_to_process = []
-    mirror_next = False
+def extract_audio_from_video(video_file):
+    audio_file = f"{OUTPUT_FOLDER}/{get_clipname(video_file)}_audio.aac"
+    os.system(f"ffmpeg {OVERWRITE_FLAG} -i {video_file} -vn -acodec copy {audio_file}")
+    return audio_file
 
-    for arg in args:
-        if arg == '--mirror':
-            mirror_next = True
-        elif mirror_next:
-            mirrored_video = mirror_video(arg)
-            mirrored_videos.append(mirrored_video)
-            videos_to_process.append(mirrored_video)
-            mirror_next = False
-        else:
-            videos_to_process.append(arg)
+def merge_audio_with_video(video_file, audio_file, output_file):
+    # Get the length of the video file
+    video_length = get_video_length(video_file)
+    
+    # Trim the audio file to match the length of the video file
+    trimmed_audio_file = f"{OUTPUT_FOLDER}/{get_clipname(audio_file)}_trimmed.aac"
+    os.system(f"ffmpeg {OVERWRITE_FLAG} -i {audio_file} -ss 0 -t {video_length} {trimmed_audio_file}")
 
-    return videos_to_process, mirrored_videos
-    mirrored_videos = []
-    videos_to_process = []
-    mirror_next = False
+    # Merge the trimmed audio file with the video file
+    os.system(f"ffmpeg {OVERWRITE_FLAG} -i {video_file} -i {trimmed_audio_file} -c:v copy -c:a aac -strict experimental {output_file}")
 
-    # Define the index of the current video being processed
-    current_video_index = 0
+    # Optionally, delete the trimmed audio file to clean up
+    os.system(f"rm {trimmed_audio_file}")
 
-    for arg in args:
-        if arg == '--mirror':
-            mirror_next = True
-            continue
-
-        if mirror_next:
-            mirrored_video = mirror_video(arg)
-            mirrored_videos.append(mirrored_video)
-            videos_to_process.append(mirrored_video)
-            mirror_next = False
-        else:
-            if current_video_index < len(videos_to_process):
-                videos_to_process[current_video_index] = arg
-            else:
-                videos_to_process.append(arg)
-            current_video_index += 1
-
-    return videos_to_process, mirrored_videos
-    mirrored_videos = []
-    videos_to_process = []
-
-    for i, arg in enumerate(args):
-        if arg == '--mirror':
-            # Mirror the next video
-            mirrored_video = mirror_video(args[i + 1])
-            mirrored_videos.append(mirrored_video)
-            videos_to_process.append(mirrored_video)
-        elif i == 0 or (i > 0 and args[i - 1] != '--mirror'):
-            # Add non-mirrored videos
-            videos_to_process.append(arg)
-
-    return videos_to_process, mirrored_videos
-
-
-# Main execution block
-if __name__ == "__main__":
-    # Check if enough arguments are passed
-    if len(sys.argv) < 3:
-        print(f"Usage: {sys.argv[0]} <reference_video> <comparison_video> [--mirror-reference] [--mirror-comparison]")
-        sys.exit(-1)
-
-    # Initialize flags
-    mirror_reference = '--mirror-reference' in sys.argv
-    mirror_comparison = '--mirror-comparison' in sys.argv
-
-    # Remove flags from arguments
-    args = [arg for arg in sys.argv[1:] if arg not in ['--mirror-reference', '--mirror-comparison']]
-
-    # Assigning command line arguments to variables
-    reference_video = args[0]
-    comparison_video = args[1]
-
-    # Mirror videos if flags are set
-    if mirror_reference:
-        reference_video = mirror_video(reference_video)
-    if mirror_comparison:
-        comparison_video = mirror_video(comparison_video)
-
-
-    # Creating the output directory
-    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-
-    # Verifying command line arguments
-    if len(sys.argv) < 3:
-        print(f"Correct Usage:\n {sys.argv[0]} <reference_video> <comparison_video>")
-        sys.exit(-1)
-
-    # Check if '--mirror' flag is used and mirror the specified video
-    if '--mirror' in sys.argv:
-        mirror_index = sys.argv.index('--mirror')
-        video_to_mirror = sys.argv[mirror_index + 1]
-
-        # Mirror the specified video
-        mirrored_video = mirror_video(video_to_mirror)
-
-        # Replace the original video with the mirrored version in the argument list
-        sys.argv[mirror_index + 1] = mirrored_video
-
-    # Assigning command line arguments to variables
-    reference_video = sys.argv[1]
-    comparison_video = sys.argv[2]
-"""
 
 def get_video_length(file_path):
     video_capture = cv2.VideoCapture(file_path)
@@ -285,7 +193,7 @@ def compare_joint_positions(xy_dancer1, xy_dancer2, frames_dancer1, frames_dance
     # Creating the output video
     output_video = VideoWriter(f'{OUTPUT_FOLDER}/output.mp4', VideoWriter_fourcc(*'mp4v'), 24.0, (2*720, 1280), isColor=True)
 
-
+    
     for frame_index in range(frame_comparison_count):
         # Calculate joint angle differences for each frame
         joint_angle_differences = []
@@ -293,8 +201,22 @@ def compare_joint_positions(xy_dancer1, xy_dancer2, frames_dancer1, frames_dance
         # Retrieve joint positions for the current frame
         joints_dancer1, joints_dancer2 = xy_dancer1[frame_index], xy_dancer2[frame_index]
 
+        # Skip frames where landmarks are not detected
+        if not joints_dancer1 or not joints_dancer2:
+            continue
+
         for pair_index, pair in enumerate(joint_pairs):
             joint1, joint2 = pair
+
+            # Ensure joints exist in both dancers
+            if joint1 >= len(joints_dancer1) or joint2 >= len(joints_dancer1) or \
+            joint1 >= len(joints_dancer2) or joint2 >= len(joints_dancer2):
+                    continue
+
+            # Ensure non-zero denominators for gradient calculation
+            if (joints_dancer1[joint1][0] == joints_dancer1[joint2][0]) or \
+                (joints_dancer2[joint1][0] == joints_dancer2[joint2][0]):
+                    continue
 
             # Calculate gradients (slopes) for each dancer
             gradient_dancer1 = (joints_dancer1[joint1][1] - joints_dancer1[joint2][1]) / (joints_dancer1[joint1][0] - joints_dancer1[joint2][0])
@@ -344,96 +266,6 @@ def compare_joint_positions(xy_dancer1, xy_dancer2, frames_dancer1, frames_dance
             print(f"{joint} Accuracy: {accuracy_percentage:.2f}%")
 
     return synchronization_score
-    # Joint pairs for comparison
-    joint_pairs = [(16, 14), (14, 12), (12, 11), (11, 13), (13, 15), (12, 24), (11, 23), (24, 23), (24, 26), (23, 25), (26, 28), (25, 27)]
-    
-    # Corresponding joint names for each pair
-    joint_names = ["Right Shoulder", "Right Elbow", "Right Wrist", "Left Shoulder", 
-                   "Left Elbow", "Left Wrist", "Upper Body", "Right Hip", 
-                   "Right Knee", "Left Hip", "Left Knee", "Lower Body"]  # Adjusted names
-
-    # Initialize dictionaries to track accuracy and count for each joint
-    joint_accuracy = {joint: 0 for joint in joint_names}
-    joint_count = {joint: 0 for joint in joint_names}
-
-
-    # Tracking the number of frames where dancers are not synchronized
-    unsynced_frames = 0
-    synchronization_score = 100
-
-    # Determine the number of frames for comparison
-    frame_comparison_count = min(len(xy_dancer1), len(xy_dancer2))
-
-    print("Analyzing synchronization...")
-    # Creating the output video
-    output_video = VideoWriter(f'{OUTPUT_FOLDER}/output.mp4', VideoWriter_fourcc(*'mp4v'), 24.0, (2*720, 1280), isColor=True)
-
-    for frame_index in range(frame_comparison_count):
-        # Calculate joint angle differences for each frame
-        joint_angle_differences = []
-
-        # Retrieve joint positions for the current frame
-        joints_dancer1, joints_dancer2 = xy_dancer1[frame_index], xy_dancer2[frame_index]
-
-        for pair_index, pair in enumerate(joint_pairs):
-            joint1, joint2 = pair
-
-            # Calculate gradients (slopes) for each dancer
-            gradient_dancer1 = (joints_dancer1[joint1][1] - joints_dancer1[joint2][1]) / (joints_dancer1[joint1][0] - joints_dancer1[joint2][0])
-            gradient_dancer2 = (joints_dancer2[joint1][1] - joints_dancer2[joint2][1]) / (joints_dancer2[joint1][0] - joints_dancer2[joint2][0])
-
-            # Debugging: Print gradients and differences
-            print(f"Frame {frame_index}, Joint Pair {joint_names[pair_index]}: Gradient Dancer 1 = {gradient_dancer1}, Gradient Dancer 2 = {gradient_dancer2}")
-
-
-            # Compute the difference in gradients
-            difference = abs((gradient_dancer1 - gradient_dancer2) / gradient_dancer1)
-            joint_angle_differences.append(abs(difference))
-
-            # Debugging: Print difference
-            print(f"Frame {frame_index}, Joint Pair {joint_names[pair_index]}: Difference = {difference}")
-
-            # Update joint accuracy
-            if difference < 2:  # example threshold, can be adjusted
-                joint_accuracy[joint_names[pair_index]] += 1
-            joint_count[joint_names[pair_index]] += 1
-
-        # Calculate the mean difference for the frame
-        frame_difference = mean(joint_angle_differences)
-
-        # Create live comparison display
-        frame_height, frame_width, _ = frames_dancer1[frame_index].shape
-        mpDrawing.draw_landmarks(frames_dancer1[frame_index], landmarks_dancer1[frame_index].pose_landmarks, mpBodyPose.POSE_CONNECTIONS)
-        mpDrawing.draw_landmarks(frames_dancer2[frame_index], landmarks_dancer2[frame_index].pose_landmarks, mpBodyPose.POSE_CONNECTIONS)
-        comparison_display = np.concatenate((frames_dancer1[frame_index], frames_dancer2[frame_index]), axis=1)
-
-        # Set color based on difference magnitude
-        color = (0, 0, 255) if frame_difference > 10 else (255, 0, 0)
-        cv2.putText(comparison_display, f"Diff: {frame_difference:.2f}", (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
-
-        # Increment unsynced frames count if needed
-        if frame_difference > 10:
-            unsynced_frames += 1
-
-        # Update live synchronization score
-        synchronization_score = ((frame_index + 1 - unsynced_frames) / (frame_index + 1)) * 100.0
-        cv2.putText(comparison_display, f"Score: {synchronization_score:.2f}%", (frame_width + 40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
-
-        cv2.imshow(str(frame_index), comparison_display)
-        output_video.write(comparison_display)
-        cv2.waitKey(1)
-
-    output_video.release()
-
-    # Print Accuracy Summary
-    print("Accuracy Summary")
-    for joint, acc_count in joint_accuracy.items():
-        if joint_count[joint] > 0:  # Avoid division by zero
-            accuracy_percentage = (acc_count / joint_count[joint]) * 100
-            print(f"{joint} Accuracy: {accuracy_percentage:.2f}%")
-
-
-        return synchronization_score
 
 # --------------------------------------------------------- SYNCING -----------------------------------------------------------------------------------
 
@@ -498,10 +330,11 @@ def delete_temporary_videos():
     """
     Removes all temporary video files created during the processing (both trimmed and framerate-adjusted videos).
     """
-    remove_trimmed_command = "rm *trimmed.mov"
-    os.system(remove_trimmed_command)
-    remove_framerate_adjusted_command = "rm *24fps.mov"
-    os.system(remove_framerate_adjusted_command)
+    trimmed_files = glob.glob(f"{OUTPUT_FOLDER}/*trimmed.mov")
+    framerate_adjusted_files = glob.glob(f"{OUTPUT_FOLDER}/*24fps.mov")
+
+    for file in trimmed_files + framerate_adjusted_files:
+        os.remove(file)
 
 
 # --------------------------------------------------------- PREPARE VIDEOS --------------------------------------------------------------------------------------
@@ -518,7 +351,7 @@ def change_video_speed(video_file, speed_factor):
 
 if __name__ == "__main__":
     # Default speed factor
-    default_speed_factor = 0.5
+    default_speed_factor = 1.0
     speed_factor = default_speed_factor
 
     # Check if the first argument is a speed factor
@@ -588,3 +421,12 @@ print(f"\n Your synchronization with the reference model is {synchronization_sco
 
 # Cleaning up temporary files
 # delete_temporary_videos()
+
+
+# After creating output.mp4
+extracted_audio = extract_audio_from_video(reference_video)  # Extract audio from the reference video
+final_output_video = f"{OUTPUT_FOLDER}/final_output_with_audio.mp4"
+merge_audio_with_video(f"{OUTPUT_FOLDER}/output.mp4", extracted_audio, final_output_video)
+
+# Cleaning up temporary files
+delete_temporary_videos()
