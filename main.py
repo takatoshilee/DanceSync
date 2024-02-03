@@ -1,39 +1,45 @@
+"""
+TODO:
+- Add mirror function (Done)
+- Add speed function (Done) -> MAKE INTO terminal args
+
+ gui
+
+- OOP
+- GUI
+- Cleaning up temporary files (TBD)
+- Real-time testing -> use PoseNet instead of MediaPipe
+"""
+
 import os
+import subprocess
+import glob
+import cv2
+from cv2 import VideoWriter_fourcc, VideoWriter
+import math
+import mediapipe as mp
+from statistics import mean
+import numpy as np
+import sys
+import warnings
 
-"""
-TODO
-add mirror function done
+# Suppress warnings and mediapipe logs at the start to avoid repetition
+warnings.filterwarnings("ignore")
+os.environ['GLOG_minloglevel'] = '2'
 
-add speed funciton done -> MAKE INTO terminal args
+# ---------------------------- Configuration -----------------------------
+OUTPUT_FOLDER = "output"
+OVERWRITE_FLAG = "-y"  # Use "-y" to overwrite, "" to not overwrite existing files
+PRAAT_EXECUTABLE = "/Applications/Praat.app/Contents/MacOS/Praat"
+TIME_INTERVAL = 30  # Duration in seconds for audio sync
 
-OOP
-
-GUI
-
-# Cleaning up temporary files
-# delete_temporary_videos()
-
-real time testing -> use posenet instead of mediapipe
-"""
-
+# ---------------------------- Utility Functions -------------------------
 #SUPPRESSION
 from contextlib import contextmanager
 from contextlib import suppress
-
-# Suppressing warnings
-import warnings
-warnings.filterwarnings("ignore")
-
-# suppress mediapipe logs
-os.environ['GLOG_minloglevel'] = '2'
-
-def run_ffmpeg_command(command):
-    with open(os.devnull, 'w') as devnull:
-        subprocess.run(command, shell=True, stdout=devnull, stderr=devnull)
-
-
 @contextmanager
 def suppress_output():
+    """Suppresses console output."""
     new_stdout, new_stderr = open(os.devnull, 'w'), open(os.devnull, 'w')
     old_stdout, old_stderr = sys.stdout, sys.stderr
     sys.stdout, sys.stderr = new_stdout, new_stderr
@@ -44,28 +50,27 @@ def suppress_output():
         new_stdout.close()
         new_stderr.close()
 
+def run_ffmpeg_command(command):
+    """Executes an FFmpeg command with suppressed output."""
+    with open(os.devnull, 'w') as devnull:
+        subprocess.run(command, shell=True, stdout=devnull, stderr=devnull)
 
-#OPTIONAL END
-            
+def calculate_frame_rate(video_file):
+    video_capture = cv2.VideoCapture(video_file)
+    print(f"Attempting to open video file {video_file}")
 
-import subprocess
-import glob  
-import cv2
-from cv2 import VideoWriter_fourcc, VideoWriter
-import math
-import mediapipe as mp
-from statistics import mean
-import numpy as np
-import sys
+    if not video_capture.isOpened():
+        print(f"Failed to open video file {video_file} for frame rate calculation.")
+        return None
+    frame_rate = video_capture.get(cv2.CAP_PROP_FPS)
+    video_capture.release()
+    return frame_rate
 
-import warnings
-warnings.filterwarnings("ignore")
-
-
-OUTPUT_FOLDER = "output"
-OVERWRITE_FLAG = "-y"  # skip if file exists, change to -y for overwrite
-PRAAT_EXECUTABLE = "/Applications/Praat.app/Contents/MacOS/Praat"
-TIME_INTERVAL = 30  # duration in seconds
+def calculate_angle(p1, p2, p3):
+    a = np.array(p1) - np.array(p2)
+    b = np.array(p3) - np.array(p2)
+    angle = np.arctan2(a[1], a[0]) - np.arctan2(b[1], b[0])
+    return np.abs(angle)
 
 # --------------------------------------------------------- VIDEO PROCESSING --------------------------------------------------------------------------------------
 
@@ -89,8 +94,6 @@ def merge_audio_with_video(video_file, audio_file, output_file):
     run_ffmpeg_command(f"ffmpeg {OVERWRITE_FLAG} -i {video_file} -i {trimmed_audio_file} -c:v copy -c:a aac -strict experimental {output_file}")
     os.remove(trimmed_audio_file)
 
-
-
 def get_video_length(file_path):
     video_capture = cv2.VideoCapture(file_path)
     frame_rate = video_capture.get(cv2.CAP_PROP_FPS)
@@ -103,6 +106,37 @@ def get_total_frames(video_file):
     total_frame_count = int(math.floor(video_capture.get(cv2.CAP_PROP_FRAME_COUNT)))
     return video_capture, total_frame_count
 
+def standardize_framerate(video_file):
+    standardized_clip = f"{OUTPUT_FOLDER}/{get_clipname(video_file) + '_24fps'}.mov"
+    with suppress_output():
+        os.system(f"ffmpeg {OVERWRITE_FLAG} -loglevel panic -i {video_file} -filter:v fps=24 {standardized_clip}")
+    return standardized_clip
+
+def change_video_speed(video_file, speed_factor):
+    output_file = f"{OUTPUT_FOLDER}/{get_clipname(video_file)}_speed_{speed_factor}.mov"
+    os.system(f"ffmpeg {OVERWRITE_FLAG} -i {video_file} -filter:v 'setpts={1/speed_factor}*PTS' -filter:a 'atempo={speed_factor}' {output_file}")
+    return output_file
+
+# ------------------------- Audio Processing Functions -------------------
+
+def convert_video_to_wav(video_file):
+    audio_file = f"{OUTPUT_FOLDER}/{get_clipname(video_file)}.wav"
+    with suppress_output():
+        os.system(f"ffmpeg {OVERWRITE_FLAG} -loglevel panic -hide_banner -i {video_file} {audio_file}")
+    return audio_file
+
+def detect_audio_offset(reference_audio, comparison_audio):
+    """
+    Detects the audio offset between two WAV files. It compares the reference audio with the comparison audio.
+    IMPORTANT: Assumes that the input audio files might be of different lengths.
+    The offset is used to synchronize clips, ensuring they are compared over the same choreography section.
+    """
+    initial_offset = 0
+    offset_command = f"{PRAAT_EXECUTABLE} --run 'crosscorrelate.praat' {reference_audio} {comparison_audio} {initial_offset} {TIME_INTERVAL}"
+    audio_offset = subprocess.check_output(offset_command, shell=True)
+    return abs(float(str(audio_offset)[2:-3]))
+
+# ----------------------- Landmark Extraction Functions ------------------
 # utilities
 mpDrawing = mp.solutions.drawing_utils
 mpBodyPose = mp.solutions.pose
@@ -158,7 +192,28 @@ def extract_landmarks(video_file):
 
     return xy_joint_coords, video_frames, pose_landmarks
     
+# ------------------------- Synchronization Analysis ---------------------
 
+def check_reference_video_length(reference_video, compared_video):
+    "Ensure the reference video is longer than the video it's compared to"
+    _, reference_video_frames = get_total_frames(reference_video)
+    _, compared_video_frames = get_total_frames(compared_video)
+    
+    print(f"Reference video frames: {reference_video_frames}, Compared video frames: {compared_video_frames}")
+
+    if reference_video_frames <= compared_video_frames:
+        print(f"Reference video {reference_video} must be longer than compared video {compared_video}")
+        print("Exiting program due to error")
+        sys.exit(-1)
+
+def equalize_clip_lengths(reference_clip, compared_clip, time_offset):
+    compared_clip_duration = get_video_length(compared_clip)
+    trimmed_ref_clip = f"{OUTPUT_FOLDER}/{get_clipname(reference_clip) + '_trimmed.mov'}"
+    trimmed_compared_clip = f"{OUTPUT_FOLDER}/{get_clipname(compared_clip) + '_trimmed.mov'}"
+    with suppress_output():
+        os.system(f"ffmpeg {OVERWRITE_FLAG} -i {reference_clip} -ss {time_offset} -t {compared_clip_duration} {trimmed_ref_clip}")
+        os.system(f"ffmpeg {OVERWRITE_FLAG} -i {compared_clip} -ss 0 -t {compared_clip_duration} {trimmed_compared_clip}")
+    return trimmed_ref_clip, trimmed_compared_clip
 
 def compare_joint_positions(xy_dancer1, xy_dancer2, frames_dancer1, frames_dancer2, landmarks_dancer1, landmarks_dancer2, frame_rate):
     #DEBUG
@@ -184,7 +239,6 @@ def compare_joint_positions(xy_dancer1, xy_dancer2, frames_dancer1, frames_dance
 
     frame_accuracies = []
 
-    second_accuracies = {}
 
     for frame_index in range(frame_comparison_count):
         joint_angle_differences = []
@@ -246,19 +300,22 @@ def compare_joint_positions(xy_dancer1, xy_dancer2, frames_dancer1, frames_dance
             frame_accuracies.append((frame_index, 0)) # Assigning 0% accuracy as an example
     output_video.release()
     
+    # Calculate average accuracies for each second
+    second_accuracies = {}
     for i in range(0, len(frame_accuracies), int(frame_rate)):
         second = i // int(frame_rate)
         accuracies_this_second = [acc[1] for acc in frame_accuracies[i:i + int(frame_rate)] if acc]
         if accuracies_this_second:
-            average_accuracy = sum(accuracies_this_second) / len(accuracies_this_second)
-            second_accuracies[second] = average_accuracy
+            average_accuracy_this_second = sum(accuracies_this_second) / len(accuracies_this_second)
+            second_accuracies[second] = average_accuracy_this_second
 
-    if not second_accuracies:
+    # Find the second with the lowest average accuracy
+    if second_accuracies:
+        worst_second = min(second_accuracies, key=second_accuracies.get)
+        worst_accuracy = second_accuracies[worst_second]
+        print(f"Worst synchronization at second {worst_second} with an average accuracy of {worst_accuracy:.2f}%.")
+    else:
         print("No valid second-level accuracies recorded.")
-        return None  # Or some default value, e.g., 0
-
-    min_accuracy_second = min(second_accuracies, key=second_accuracies.get)
-    print(f"Lowest accuracy at second {min_accuracy_second} with {second_accuracies[min_accuracy_second]:.2f}% accuracy.")
 
 
     print("Accuracy Summary")
@@ -271,103 +328,6 @@ def compare_joint_positions(xy_dancer1, xy_dancer2, frames_dancer1, frames_dance
     print(f"Lowest accuracy at frame {min_accuracy_frame[0]} with {min_accuracy_frame[1]:.2f}% accuracy.")
 
     return synchronization_score
-
-# --------------------------------------------------------- SYNCING -----------------------------------------------------------------------------------
-
-def convert_video_to_wav(video_file):
-    audio_file = f"{OUTPUT_FOLDER}/{get_clipname(video_file)}.wav"
-    with suppress_output():
-        os.system(f"ffmpeg {OVERWRITE_FLAG} -loglevel panic -hide_banner -i {video_file} {audio_file}")
-    return audio_file
-
-
-def standardize_framerate(video_file):
-    standardized_clip = f"{OUTPUT_FOLDER}/{get_clipname(video_file) + '_24fps'}.mov"
-    with suppress_output():
-        os.system(f"ffmpeg {OVERWRITE_FLAG} -loglevel panic -i {video_file} -filter:v fps=24 {standardized_clip}")
-    return standardized_clip
-
-
-
-def check_reference_video_length(reference_video, compared_video):
-    "Ensure the reference video is longer than the video it's compared to"
-    _, reference_video_frames = get_total_frames(reference_video)
-    _, compared_video_frames = get_total_frames(compared_video)
-    
-    print(f"Reference video frames: {reference_video_frames}, Compared video frames: {compared_video_frames}")
-
-    if reference_video_frames <= compared_video_frames:
-        print(f"Reference video {reference_video} must be longer than compared video {compared_video}")
-        print("Exiting program due to error")
-        sys.exit(-1)
-
-def convert_video_to_wav(video_file):
-    audio_file = f"{OUTPUT_FOLDER}/{get_clipname(video_file)}.wav"
-    with suppress_output():
-        os.system(f"ffmpeg {OVERWRITE_FLAG} -loglevel panic -hide_banner -i {video_file} {audio_file} > /dev/null 2>&1")
-    return audio_file
-
-def detect_audio_offset(reference_audio, comparison_audio):
-    """
-    Detects the audio offset between two WAV files. It compares the reference audio with the comparison audio.
-    IMPORTANT: Assumes that the input audio files might be of different lengths.
-    The offset is used to synchronize clips, ensuring they are compared over the same choreography section.
-    """
-    initial_offset = 0
-    offset_command = f"{PRAAT_EXECUTABLE} --run 'crosscorrelate.praat' {reference_audio} {comparison_audio} {initial_offset} {TIME_INTERVAL}"
-    audio_offset = subprocess.check_output(offset_command, shell=True)
-    return abs(float(str(audio_offset)[2:-3]))
-
-# --------------------------------------------------------- COMPUTE SYNC ------------------------------------------------------------------------
-
-def equalize_clip_lengths(reference_clip, compared_clip, time_offset):
-    compared_clip_duration = get_video_length(compared_clip)
-    trimmed_ref_clip = f"{OUTPUT_FOLDER}/{get_clipname(reference_clip) + '_trimmed.mov'}"
-    trimmed_compared_clip = f"{OUTPUT_FOLDER}/{get_clipname(compared_clip) + '_trimmed.mov'}"
-    with suppress_output():
-        os.system(f"ffmpeg {OVERWRITE_FLAG} -i {reference_clip} -ss {time_offset} -t {compared_clip_duration} {trimmed_ref_clip}")
-        os.system(f"ffmpeg {OVERWRITE_FLAG} -i {compared_clip} -ss 0 -t {compared_clip_duration} {trimmed_compared_clip}")
-    return trimmed_ref_clip, trimmed_compared_clip
-
-
-def delete_temporary_videos():
-    """
-    Removes all temporary video files created during the processing (both trimmed and framerate-adjusted videos).
-    """
-    trimmed_files = glob.glob(f"{OUTPUT_FOLDER}/*trimmed.mov")
-    framerate_adjusted_files = glob.glob(f"{OUTPUT_FOLDER}/*24fps.mov")
-
-    for file in trimmed_files + framerate_adjusted_files:
-        os.remove(file)
-
-
-# --------------------------------------------------------- PREPARE VIDEOS --------------------------------------------------------------------------------------
-
-def change_video_speed(video_file, speed_factor):
-    output_file = f"{OUTPUT_FOLDER}/{get_clipname(video_file)}_speed_{speed_factor}.mov"
-    os.system(f"ffmpeg {OVERWRITE_FLAG} -i {video_file} -filter:v 'setpts={1/speed_factor}*PTS' -filter:a 'atempo={speed_factor}' {output_file}")
-    return output_file
-
-def calculate_frame_rate(video_file):
-    video_capture = cv2.VideoCapture(video_file)
-    print(f"Attempting to open video file {video_file}")
-
-    if not video_capture.isOpened():
-        print(f"Failed to open video file {video_file} for frame rate calculation.")
-        return None
-    frame_rate = video_capture.get(cv2.CAP_PROP_FPS)
-    video_capture.release()
-    return frame_rate
-
-
-
-import numpy as np
-
-def calculate_angle(p1, p2, p3):
-    a = np.array(p1) - np.array(p2)
-    b = np.array(p3) - np.array(p2)
-    angle = np.arctan2(a[1], a[0]) - np.arctan2(b[1], b[0])
-    return np.abs(angle)
 
 def get_joint_position(joint, xy_coordinates):
     if type(joint) == tuple:
@@ -398,16 +358,23 @@ def get_joint_position(joint, xy_coordinates):
         else:
             return None
 
-
+# Angular Calculation: Joint Sets
+joint_sets_angular = [
+    (11, 13, 15),  # Left Arm: Shoulder, Elbow, Wrist
+    (12, 14, 16),  # Right Arm: Shoulder, Elbow, Wrist
+    (23, 25, 27),  # Left Leg: Hip, Knee, Ankle
+    (24, 26, 28),  # Right Leg: Hip, Knee, Ankle
+]
 
 def calculate_mse(xy_dancer1, xy_dancer2, joint_sets, penalty_per_missing_joint=0.25 * (180 ** 2)):
-    print(f"Calculating MSE for {len(joint_sets)} joint sets")
-
-    angle_differences = []
+    total_squared_difference = 0
+    valid_differences_count = 0
     missing_joint_count = 0
 
-    for joint1, joint2, joint3 in joint_sets:
-        # Get positions for each joint
+    for joint_set in joint_sets:
+        joint1, joint2, joint3 = joint_set
+
+        # Fetch joint positions for each dancer
         p1_dancer1 = get_joint_position(joint1, xy_dancer1)
         p2_dancer1 = get_joint_position(joint2, xy_dancer1)
         p3_dancer1 = get_joint_position(joint3, xy_dancer1)
@@ -416,54 +383,64 @@ def calculate_mse(xy_dancer1, xy_dancer2, joint_sets, penalty_per_missing_joint=
         p2_dancer2 = get_joint_position(joint2, xy_dancer2)
         p3_dancer2 = get_joint_position(joint3, xy_dancer2)
 
-        # Check if any joint positions are None
-        if None in (p1_dancer1, p2_dancer1, p3_dancer1, p1_dancer2, p2_dancer2, p3_dancer2):
+        # Check if any of the joint positions are None (meaning joint data is missing)
+        if None in [p1_dancer1, p2_dancer1, p3_dancer1, p1_dancer2, p2_dancer2, p3_dancer2]:
             missing_joint_count += 1
-            print(f"Missing joint data for frame {joint1}, {joint2}, {joint3}")
-            continue
+            continue  # Skip this set of joints because one or more joints are missing
 
-        # Calculate the angles and differences
+        # Calculate angles
         angle1 = calculate_angle(p1_dancer1, p2_dancer1, p3_dancer1)
         angle2 = calculate_angle(p1_dancer2, p2_dancer2, p3_dancer2)
-        angle_differences.append((angle1 - angle2) ** 2)
+        
+        # Calculate squared difference
+        squared_difference = (angle1 - angle2) ** 2
+        total_squared_difference += squared_difference
+        valid_differences_count += 1
 
-    # Calculate MSE and ensure it's a scalar
-    mse = sum(angle_differences) / len(angle_differences) if angle_differences else 0
-    mse += missing_joint_count * penalty_per_missing_joint
-    return mse.item() if isinstance(mse, np.ndarray) and mse.size == 1 else mse
+    if valid_differences_count > 0:
+        mse = (total_squared_difference + missing_joint_count * penalty_per_missing_joint) / valid_differences_count
+    else:
+        mse = missing_joint_count * penalty_per_missing_joint
 
+    print(f"Calculated MSE: {mse}, based on {valid_differences_count} valid differences and {missing_joint_count} missing joints.")
+    return mse
 
-def calculate_synchronization_score(mse, alpha=0.001):
-    score = 1 - np.tanh(alpha * mse)
-    # Convert score to a scalar if it's a NumPy array
-    if isinstance(score, np.ndarray):
-        if score.size == 1:
-            return score.item()
-        else:
-            return score.mean()  # or any other appropriate aggregation
+def calculate_synchronization_score(mse, alpha=0.1):
+    # Debug print to understand the shape and content of mse
+    print(f"MSE details: type={type(mse)}, shape={np.shape(mse)}, values={mse}")
+    
+    # If mse is indeed expected to be a scalar but is somehow an array, take the mean (or another appropriate aggregation method)
+    if isinstance(mse, np.ndarray) and mse.size > 1:
+        mse_mean = np.mean(mse)
+    else:
+        mse_mean = mse  # Assuming mse is a scalar or a single-element array
+    
+    # Adjusted score calculation
+    score = (1 - np.tanh(alpha * mse_mean)) * 100  # Now directly gives the percentage
+
+    print(f"Adjusted synchronization score: {score}%")  # Updated print statement
     return score
 
-
-
-
-
-# Angular Calculation: Joint Sets
-joint_sets_angular = [
-    (12, 14, 16), # Right Arm: Shoulder, Elbow, Wrist
-    (11, 13, 15), # Left Arm: Shoulder, Elbow, Wrist
-    (24, 26, 28), # Right Leg: Hip, Knee, Ankle
-    (23, 25, 27), # Left Leg: Hip, Knee, Ankle
-    ((12, 24), (24, 23), (23, 11)), # Upper Body: Right Shoulder, Midpoint of Hips, Left Shoulder
-    (((11, 12), 'midpoint'), 0, 10)  # Neck and Head: Midpoint of Shoulders, Neck, Head Top
-]
-
-# Function for MSE-based comparison using angular calculation
 def mse_based_comparison(xy_dancer1, xy_dancer2):
+    # Define your joint_sets_angular here as previously
     mse = calculate_mse(xy_dancer1, xy_dancer2, joint_sets_angular)
     synchronization_score_mse = calculate_synchronization_score(mse)
     print(f"Synchronization score (MSE-based): {synchronization_score_mse:.2f}%")
 
 
+# -------------------------- Additional Utilities -------------------------
+def delete_temporary_videos():
+    """
+    Removes all temporary video files created during the processing (both trimmed and framerate-adjusted videos).
+    """
+    trimmed_files = glob.glob(f"{OUTPUT_FOLDER}/*trimmed.mov")
+    framerate_adjusted_files = glob.glob(f"{OUTPUT_FOLDER}/*24fps.mov")
+
+    for file in trimmed_files + framerate_adjusted_files:
+        os.remove(file)
+
+
+# ------------------------------- Main Logic -----------------------------
 
 if __name__ == "__main__":
     # Default speed factor
@@ -518,6 +495,23 @@ if __name__ == "__main__":
     if not xy_ref_dancer or not xy_comp_dancer:
         print("Failed to extract landmarks from one or both videos.")
         sys.exit(-1)
+    
+# Debugging: Print sample joint coordinates after extraction
+print(f"Sample joint coordinates for Reference Video: {xy_ref_dancer[:5]}")  # Print first 5 frames of joint coordinates for the reference video
+print(f"Sample joint coordinates for Comparison Video: {xy_comp_dancer[:5]}")  # Print first 5 frames of joint coordinates for the comparison video
+
+# Correctly accessing the first element of each tuple if they are nested tuples
+for i, (ref_point, comp_point) in enumerate(zip(xy_ref_dancer, xy_comp_dancer)):
+    # Extract x and y from each point (assuming each point is a tuple of tuples and you're interested in the first one)
+    ref_x, ref_y = ref_point[0]  # Assuming the first element of each tuple is the coordinate tuple
+    comp_x, comp_y = comp_point[0]  # Ditto for the comparison point
+
+    # Now perform the squared difference calculation
+    squared_diff_x = (ref_x - comp_x) ** 2
+    squared_diff_y = (ref_y - comp_y) ** 2
+    squared_diff = squared_diff_x + squared_diff_y
+
+    print(f"Frame {i}, Squared Differences: {squared_diff}")
 
 
 # Complete comparison process
@@ -564,9 +558,6 @@ if not (len(sys.argv) > 3 and sys.argv[3] == '--compare-only'):
     # MSE-based comparison
     mse_based_comparison(xy_ref_dancer, xy_comp_dancer)
 
-    # Cleaning up temporary files
-    # delete_temporary_videos()
-
     # After creating output.mp4
     extracted_audio = extract_audio_from_video(reference_video)  # Extract audio from the reference video
     final_output_video = f"{OUTPUT_FOLDER}/final_output_with_audio.mp4"
@@ -574,38 +565,3 @@ if not (len(sys.argv) > 3 and sys.argv[3] == '--compare-only'):
 
     # Cleaning up temporary files
     delete_temporary_videos()
-# --------------------------------------------------------- MAIN --------------------------------------------------------------------------------------
-else:
-    # Assigning already trimmed videos for comparison
-    trimmed_reference_video = sys.argv[1]
-    trimmed_comparison_video = sys.argv[2]
-
-
-
-# Analyzing dance synchronization
-print(f"Reference model: {trimmed_reference_video}, Comparison: {trimmed_comparison_video} \n")
-xy_ref_dancer, ref_dancer_frames, ref_dancer_landmarks = extract_landmarks(trimmed_reference_video)
-xy_comp_dancer, comp_dancer_frames, comp_dancer_landmarks = extract_landmarks(trimmed_comparison_video)
-
-# Check if frame_rate is available before comparing joint positions
-if frame_rate is not None:
-    synchronization_score = compare_joint_positions(xy_ref_dancer, xy_comp_dancer, ref_dancer_frames, comp_dancer_frames, ref_dancer_landmarks, comp_dancer_landmarks, frame_rate)
-    print(f"\n Your synchronization with the reference model is {synchronization_score:.2f}%.")
-else:
-    print("Frame rate is not available. Cannot proceed with synchronization score calculation.")
-
-
-# Calculate synchronization score
-synchronization_score = calculate_synchronization_score(mse)
-print(f"Synchronization score: {synchronization_score:.2f}%")
-
-# New MSE-based comparison
-mse_based_comparison(xy_ref_dancer, xy_comp_dancer)
-
-# After creating output.mp4
-extracted_audio = extract_audio_from_video(reference_video)  # Extract audio from the reference video
-final_output_video = f"{OUTPUT_FOLDER}/final_output_with_audio.mp4"
-merge_audio_with_video(f"{OUTPUT_FOLDER}/output.mp4", extracted_audio, final_output_video)
-
-# Cleaning up temporary files
-delete_temporary_videos()
