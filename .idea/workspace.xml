@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="6e8e614e-22ac-4dba-b994-a0ccfcd49173" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/75e1089f4d75edc5156e6a423c019bed-8047fae9df9fd045b71cb24deb3c294ab80f4f0b/test.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/75e1089f4d75edc5156e6a423c019bed-8047fae9df9fd045b71cb24deb3c294ab80f4f0b/vid_utils.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mirror_videos-master.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/mirror_videos-master/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/mirror_videos-master/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/mirror_videos-master/example/gebaerdensprache.mp4" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/mirror_videos-master/example/gebaerdensprache.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/mirror_videos-master/example/gebaerdensprache_mirror.mp4" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/mirror_videos-master/example/gebaerdensprache_mirrored.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/mirror_videos-master/mirror_videos.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/chuu_mirrored.mov" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/chuu_mirrored_speed_0.71.mov" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/chuu_mirrored_speed_0.wav" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/chuu_mirrored_speed_0_audio.aac" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/chuu_mirrored_speed_1.0.mov" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/chuu_mirrored_speed_1.wav" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/chuu_mirrored_speed_1_audio.aac" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/chuu_speed_3.0.mov" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/chuu_speed_3.wav" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/cyves_speed_0.71.mov" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/cyves_speed_0.wav" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/cyves_speed_3.0.mov" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/cyves_speed_3.wav" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/final_output_with_audio.mp4" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/output.mp4" beforeDir="false" afterPath="$PROJECT_DIR$/output/output.mp4" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/xtra/chuu_mirrored_speed_0.wav" beforeDir="false" afterPath="$PROJECT_DIR$/output/xtra/chuu_mirrored_speed_0.wav" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/xtra/chuu_mirrored_speed_0_audio.aac" beforeDir="false" afterPath="$PROJECT_DIR$/output/xtra/chuu_mirrored_speed_0_audio.aac" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/xtra/cyves_speed_0.wav" beforeDir="false" afterPath="$PROJECT_DIR$/output/xtra/cyves_speed_0.wav" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/xtra/final_output_with_audio.mp4" beforeDir="false" afterPath="$PROJECT_DIR$/output/xtra/final_output_with_audio.mp4" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/speed change.zip" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "customColor": "",
+  "associatedIndex": 7
+}]]></component>
+  <component name="ProjectId" id="2bQX1233uKlIsWPQrtA0GdJRcX0" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "WebServerToolWindowFactoryState": "false",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="6e8e614e-22ac-4dba-b994-a0ccfcd49173" name="Changes" comment="" />
+      <created>1706148058528</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1706148058528</updated>
+      <workItem from="1706148060070" duration="1877000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>
