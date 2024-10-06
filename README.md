@@ -1,5 +1,6 @@
 # Dance Pose Synchronization Analysis
 
+#### Research Paper: https://www.researchgate.net/publication/384668632_DanceSync_-_Your_go-to_dance_partner_in_code
 ## Overview
 The Dance Pose Synchronization Tool offers an innovative approach to compare a user's dance video against a reference, focusing on the precision of pose and movement through pose estimation technologies. Utilizing OpenCV, MediaPipe, and custom synchronization algorithms, this tool calculates the Mean Square Error (MSE) of key joint angles, providing insights into performance alignment and areas for improvement.
 
